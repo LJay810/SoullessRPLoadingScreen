@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SoullessRP radio player</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #p { position: absolute; inset: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="p"></div>
+<script>
+/* SoullessRP radio player.
+   The game opens this page in a hidden browser panel (never shown) and drives it with three functions:
+     setTrack(videoId, startSeconds)   play that YouTube video from that second (audio is all anybody hears)
+     setVol(0-100)                     the volume for this player
+     stopTrack()                       stop
+   and the page tells the game (when it runs inside Garry's Mod) with  radio.dur(seconds)  (0 = live stream),
+   radio.ended()  and  radio.err(code). Host this file on GitHub Pages: YouTube only plays embedded videos for pages
+   that have a real web address. */
+var player = null, ready = false, pending = null, vol = 0, cur = "", durTimer = null;
+
+function tell(name, arg) {
+  try { if (window.radio && window.radio[name]) window.radio[name](arg); } catch (e) {}
+}
+
+function onYouTubeIframeAPIReady() {
+  var vars = { autoplay: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, playsinline: 1, rel: 0, modestbranding: 1 };
+  if (location.origin && location.origin !== "null") vars.origin = location.origin;
+  player = new YT.Player("p", {
+    width: "100%", height: "100%",
+    playerVars: vars,
+    events: {
+      onReady: function () {
+        ready = true;
+        player.setVolume(vol);
+        if (pending) setTrack(pending.id, pending.t);
+      },
+      onStateChange: function (e) {
+        if (e.data === YT.PlayerState.PLAYING) {
+          clearTimeout(durTimer);
+          durTimer = setTimeout(function () {
+            var live = false;
+            try { live = !!(player.getVideoData && player.getVideoData().isLive); } catch (x) {}
+            tell("dur", live ? 0 : Math.round(player.getDuration() || 0));
+          }, 900);
+        } else if (e.data === YT.PlayerState.ENDED) {
+          tell("ended", cur);
+        }
+      },
+      onError: function (e) { tell("err", e.data); }
+    }
+  });
+}
+
+function setTrack(id, t) {
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return;
+  if (!ready) { pending = { id: id, t: t }; return; }
+  pending = null;
+  cur = id;
+  player.loadVideoById({ videoId: id, startSeconds: Math.max(0, t | 0) });
+  player.setVolume(vol);
+}
+
+function stopTrack() {
+  pending = null;
+  cur = "";
+  clearTimeout(durTimer);
+  if (ready) player.stopVideo();
+}
+
+function setVol(v) {
+  vol = Math.max(0, Math.min(100, v | 0));
+  if (ready) player.setVolume(vol);
+}
+
+var s = document.createElement("script");
+s.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(s);
+</script>
+</body>
+</html>
