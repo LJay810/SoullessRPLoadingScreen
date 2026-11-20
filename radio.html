@@ -12,23 +12,36 @@
 <body>
 <div id="p"></div>
 <script>
-/* SoullessRP radio player (version 2).
+/* SoullessRP radio player (version 3).
    The game opens this page in a hidden browser panel (never shown) and drives it with these functions:
      setTrack(videoId, startSeconds)   play that YouTube video from that second (audio is all anybody hears)
      setVol(0-100)                     the volume for this player
      stopTrack()                       stop
      report()                          write the player's state to the console (the game's  soul_radio_status  command shows it)
-   and the page tells the game (inside Garry's Mod) with  radio.dur(seconds)  (0 = live stream), radio.ended()  and
-   radio.err(code); everything it does is also written with console.log("RADIO ...").
+     ack()                             the game's answer to hello
+   and the page tells the game (inside Garry's Mod) with  radio.hello()  (the script is running; repeated every second until
+   the game answers with ack()), radio.dur(seconds)  (0 = live stream), radio.ended(), radio.err(code) and radio.log(text);
+   everything it does is also written with console.log("RADIO ...").
    Browsers refuse to START unmuted video without a click, but always allow muted autoplay, so every track starts muted and
    is unmuted the moment it is really playing (the same way the Media Player addon does it). Host this file on GitHub Pages:
    YouTube only plays embedded videos for pages that have a real web address. */
-var player = null, ready = false, pending = null, vol = 0, cur = "", durTimer = null, retryTimer = null;
+var player = null, ready = false, pending = null, vol = 0, cur = "", durTimer = null, retryTimer = null, acked = false;
 
-function log(msg) { try { console.log("RADIO " + msg); } catch (e) {} }
 function tell(name, arg) {
-  try { if (window.radio && window.radio[name]) window.radio[name](arg); } catch (e) {}
+  try { if (window.radio && window.radio[name]) { window.radio[name](arg); return true; } } catch (e) {}
+  return false;
 }
+function log(msg) {
+  try { console.log("RADIO " + msg); } catch (e) {}
+  tell("log", msg);
+}
+function ack() { acked = true; }
+// say hello to the game until it answers (its callbacks may not exist yet when the script first runs)
+(function hello() {
+  if (acked) return;
+  tell("hello");
+  setTimeout(hello, 1000);
+})();
 window.onerror = function (msg, src, line) { log("page error: " + msg + " (line " + line + ")"); };
 
 function applyVol() {
